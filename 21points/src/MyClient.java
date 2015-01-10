@@ -3,9 +3,9 @@ import java.io.*;
 public class MyClient {
 
 static Socket server;
-static int points;
+static Player me;
 static int port=4123;
-static int total=21;
+static int max=21;
 	public static void main(String[] args) throws UnknownHostException, IOException {
 
 		server=new Socket(InetAddress.getLocalHost(),port);
@@ -16,39 +16,34 @@ static int total=21;
 		BufferedReader wt=new BufferedReader(new InputStreamReader(System.in));
 		InputStream in=server.getInputStream();
 		ObjectInputStream objin=new ObjectInputStream(in);
+		me=new Player(0);
+		Card mycard;
 		while (true) {
-			points=0;
-			System.out.println("Ready/End?");
-			String str=wt.readLine();
+			String str="";
+			while (str.equals("Ready")==false&&str.equals("End")==false) {
+				System.out.println("Ready/End?");
+				str=wt.readLine();
+			}
+			out.println(str);
+			out.flush();
 			if (str.equals("End"))
 				break;
-			if (str.equals("Ready")!=true)
-				continue;
 			try {
-				Card mycard=(Card)objin.readObject();
-				points+=mycard.getVal();
-				System.out.println("You got a "+mycard.getShape()+" "+mycard.getVal().toString());
-				out.println("Y");
 				mycard=(Card)objin.readObject();
-				points+=mycard.getVal();
-				System.out.println("You got a "+mycard.getShape()+" "+mycard.getVal().toString());
+				me.drawCard(mycard);
+				out.println("Y");
+				out.flush();
+				mycard=(Card)objin.readObject();
+				me.drawCard(mycard);
 			} catch (Exception ex) {
 				System.out.println(ex);
 				break;				
 			}
 			while (true) { 
-				try {
-					Card mycard=(Card)objin.readObject();
-					points+=mycard.getVal();
-					System.out.println("You got a "+mycard.getShape()+" "+mycard.getVal().toString());
-				} catch (Exception ex) {
-					System.out.println(ex);
-					break;
-				}
 	
-				if (points>total) {
+				if (me.getPoint()>max) {
 					System.out.println("You Lose");
-					out.println("Lose");
+					out.println("N");
 					out.flush();
 					break;
 				}
@@ -59,10 +54,21 @@ static int total=21;
 						if (str.equals("Y")||str.equals("N"))
 							break;
 					}
+					if (str.equals("N")) 
+						break;
 					out.println(str);
 					out.flush();
 				}
-			}	
+				try {
+					mycard=(Card)objin.readObject();
+					me.drawCard(mycard);
+				} catch (Exception ex) {
+					System.out.println(ex);
+					break;
+				}
+			}
+			str=in.readLine();
+			System.out.println(str);	
 		}
 		objin.close();
 		in.close();
