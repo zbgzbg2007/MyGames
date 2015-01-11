@@ -4,7 +4,7 @@ public class Card implements Serializable{
 	
 	int val;
 	Shape shape;
-	public int getVal() {
+	public Integer getVal() {
 		return this.val;
 	}
 	public Shape getShape() {

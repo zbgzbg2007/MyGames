@@ -16,10 +16,19 @@ static int max=21;
 		BufferedReader wt=new BufferedReader(new InputStreamReader(System.in));
 		InputStream in=server.getInputStream();
 		ObjectInputStream objin=new ObjectInputStream(in);
-		me=new Player(0);
 		Card mycard;
+		String str="";
+
+		//Record the name
+		System.out.println("Your Name?");
+		str=wt.readLine();
+		me=new Player(0,str);
+		out.println(str);
+		out.flush();
+		
 		while (true) {
-			String str="";
+		
+			//Ready to start?	
 			while (str.equals("Ready")==false&&str.equals("End")==false) {
 				System.out.println("Ready/End?");
 				str=wt.readLine();
@@ -28,7 +37,10 @@ static int max=21;
 			out.flush();
 			if (str.equals("End"))
 				break;
+			
+
 			try {
+				//get the first cards
 				mycard=(Card)objin.readObject();
 				me.drawCard(mycard);
 				out.println("Y");
@@ -39,15 +51,19 @@ static int max=21;
 				System.out.println(ex);
 				break;				
 			}
+	
+			//Keep asking for more cards
 			while (true) { 
 	
 				if (me.getPoint()>max) {
+					//Too many points, you can do nothing
 					System.out.println("You Lose");
 					out.println("N");
 					out.flush();
 					break;
 				}
 				else {
+					//Want more cards or not
 					while (true) {
 						System.out.println("Want another card: Y/N?");
 						str=wt.readLine();
@@ -59,7 +75,10 @@ static int max=21;
 					out.println(str);
 					out.flush();
 				}
+			
+				
 				try {
+					//Get another card
 					mycard=(Card)objin.readObject();
 					me.drawCard(mycard);
 				} catch (Exception ex) {
@@ -67,6 +86,8 @@ static int max=21;
 					break;
 				}
 			}
+
+			//Here is the final result from server
 			str=in.readLine();
 			System.out.println(str);	
 		}

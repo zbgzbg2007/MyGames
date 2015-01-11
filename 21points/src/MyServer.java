@@ -4,22 +4,37 @@ import java.net.*;
 import java.lang.*;
 
 public class MyServer implements Runnable {
-	private Socket client;
 	static int port=4123;
+	static LinkedList<Card> cur;// all the cards
+	static int players;//number of players
+	static int maxlimit=10;//max number of players
+	static int limitpoint=21;//the largest points
+	static String res;//the result of game
+	
+	private Socket client;
+	private boolean state;//to show game finish or not
+	private int point;//the points a player got
+	private String name;//player's name
+
 	public MyServer(Socket c) {
 		this.client=c;
 		this.state=false;
+		this.point=0;
 	}
-	static LinkedList<Card> cur;// all the cards
-	static int players;//number of players
-	private boolean state;//to show game finish or not
-	static int maxlimit=10;//max number of players
-	private int point;//the points a player got
-	static int limitpoint=21;//the largest points
-	static String res;//the result of game
-	String name;//player's name
-	static void InitializeCards() {
 
+	public String getPlayerName() {
+		return this.name;
+	}
+
+	public boolean finished() {
+		return this.state;
+	}
+
+	public int getPoint() {
+		return this.point;
+	}
+
+	static void InitializeCards() {
 		List<Card> beginning=new ArrayList<Card>();
 		for (int i=0;i<14;i++)
 			for (Shape sh: EnumSet.range(Shape.Heart,Shape.Spade))
@@ -41,7 +56,9 @@ public class MyServer implements Runnable {
 		ServerSocket main_server=new ServerSocket(port);
 		players=0;
 		Scanner in=new Scanner(System.in);
+
 		while (players<1) {
+		//Record the number of players
 			System.out.println("How many players?");
 			if (in.hasNextInt()) {
 				int a=in.nextInt();
@@ -50,8 +67,7 @@ public class MyServer implements Runnable {
 			}
 		}
 		
-		LinkedList<MyServer> waiting=new LinkedList<MyServer>();
-		LinkedList<MyServer> results=new LinkedList<MyServer>();
+		LinkedList<MyServer> waiting=new LinkedList<MyServer>();//waiting list of servers 
 		MyServer subserver[]=new MyServer[players];
 		for (int i=0;i<subserver.length;i++) {
 			subserver[i]=new MyServer(main_server.accept());
@@ -60,9 +76,14 @@ public class MyServer implements Runnable {
 		}
 	
 		while (true) {	
+		//Game begins!
 			InitializeCards();
 			while (waiting.isEmpty()==false) {
+			//Keep sending cards
+
 				try {
+				//Notify the next server, waiting for its notifying 
+
 					MyServer curserver=waiting.poll();
 					curserver.notify();
 					cur.wait();
@@ -71,9 +92,11 @@ public class MyServer implements Runnable {
 				} catch (Exception ex) {
 					System.out.println(ex);
 				} finally {
-					
+				//Stop all the servers
 				}
 			}	
+			
+			//Find the winner
 			int winner=0;
 			while (winner<players&&subserver[winner].getPoint()>limitpoint)
 				winner++;
@@ -87,6 +110,8 @@ public class MyServer implements Runnable {
 				}
 				res=subserver[winner].getPlayerName()+" wins!!";
 			}
+
+			//Notify all the servers and Ready to start again
 			for (int i=0;i<players;i++) 
 				subserver[i].notify();
 			String x="";
@@ -100,15 +125,8 @@ public class MyServer implements Runnable {
 		
 		
 	}
-	public String getPlayerName() {
-		return this.name;
-	}
-	public boolean finished() {
-		return this.state;
-	}
-	public int getPoint() {
-		return this.point;
-	}
+	
+
 	public synchronized void run() {
 		try {
 			BufferedReader in=new BufferedReader(new InputStreamReader(client.getInputStream()));
@@ -116,8 +134,10 @@ public class MyServer implements Runnable {
 			OutputStream outstream=client.getOutputStream();
 			ObjectOutputStream objout=new ObjectOutputStream(outstream);
 			Card mycard;
+			String str=in.readLine();
+			this.name=str;
 			while (true) {
-				String str=in.readLine();
+				str=in.readLine();
 				System.out.println(str);
 				out.flush();
 				if (str.equals("End"))
