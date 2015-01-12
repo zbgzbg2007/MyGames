@@ -15,6 +15,7 @@ static int max=21;
 		PrintWriter out=new PrintWriter(server.getOutputStream());
 		BufferedReader wt=new BufferedReader(new InputStreamReader(System.in));
 		InputStream in=server.getInputStream();
+		BufferedReader inreader=new BufferedReader(new InputStreamReader(in));
 		ObjectInputStream objin=new ObjectInputStream(in);
 		Card mycard;
 		String str="";
@@ -37,19 +38,24 @@ static int max=21;
 			out.flush();
 			if (str.equals("End"))
 				break;
-			
+			me.resetPoint();
 
 			try {
 				//get the first cards
 				mycard=(Card)objin.readObject();
-				me.drawCard(mycard);
+				me.takeCard(mycard);  
 				out.println("Y");
 				out.flush();
 				mycard=(Card)objin.readObject();
-				me.drawCard(mycard);
+				me.takeCard(mycard);  
 			} catch (Exception ex) {
 				System.out.println(ex);
 				break;				
+			} finally {
+//				objin.close();
+//				in.close();
+//				server.close();
+
 			}
 	
 			//Keep asking for more cards
@@ -70,27 +76,32 @@ static int max=21;
 						if (str.equals("Y")||str.equals("N"))
 							break;
 					}
-					if (str.equals("N")) 
-						break;
 					out.println(str);
 					out.flush();
+					if (str.equals("N")) 
+						break;
 				}
 			
 				
 				try {
-					//Get another card
+				//Get another card
 					mycard=(Card)objin.readObject();
-					me.drawCard(mycard);
+					me.takeCard(mycard);
 				} catch (Exception ex) {
 					System.out.println(ex);
 					break;
+				} finally {
+//					objin.close();
+//					in.close();
+//					server.close();
 				}
 			}
 
 			//Here is the final result from server
-			str=in.readLine();
+			str=inreader.readLine();
 			System.out.println(str);	
 		}
+		
 		objin.close();
 		in.close();
 		server.close();

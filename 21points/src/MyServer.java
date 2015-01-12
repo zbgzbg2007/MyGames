@@ -3,23 +3,30 @@ import java.io.*;
 import java.net.*;
 import java.lang.*;
 
-public class MyServer implements Runnable {
+public class MyServer extends Thread {
 	static int port=4123;
-	static LinkedList<Card> cur;// all the cards
+	static LinkedList<Card> cur=new LinkedList<Card>();// all the cards
 	static int players;//number of players
 	static int maxlimit=10;//max number of players
 	static int limitpoint=21;//the largest points
-	static String res;//the result of game
+	static volatile String res;//the result of game
 	
 	private Socket client;
 	private boolean state;//to show game finish or not
 	private int point;//the points a player got
 	private String name;//player's name
+	
+	private volatile boolean isRunning=true;
+
 
 	public MyServer(Socket c) {
 		this.client=c;
 		this.state=false;
 		this.point=0;
+	}
+
+	public void kill() {
+		this.isRunning=false;
 	}
 
 	public String getPlayerName() {
@@ -35,10 +42,12 @@ public class MyServer implements Runnable {
 	}
 
 	static void InitializeCards() {
+	//Initialize all the cards
+
 		List<Card> beginning=new ArrayList<Card>();
-		for (int i=0;i<14;i++)
+		for (int i=0;i<13;i++)
 			for (Shape sh: EnumSet.range(Shape.Heart,Shape.Spade))
-				beginning.add(new Card(i,sh));
+				beginning.add(new Card(i+1,sh));
 		if (cur.isEmpty()==false) 
 			cur.clear();
 		
@@ -72,12 +81,13 @@ public class MyServer implements Runnable {
 		for (int i=0;i<subserver.length;i++) {
 			subserver[i]=new MyServer(main_server.accept());
 			subserver[i].start();
-			waiting.add(subserver[i]);
 		}
 	
 		while (true) {	
 		//Game begins!
 			InitializeCards();
+			for (int i=0;i<subserver.length;i++)
+				waiting.add(subserver[i]);
 			while (waiting.isEmpty()==false) {
 			//Keep sending cards
 
@@ -85,15 +95,24 @@ public class MyServer implements Runnable {
 				//Notify the next server, waiting for its notifying 
 
 					MyServer curserver=waiting.poll();
-					curserver.notify();
-					cur.wait();
+					synchronized (curserver) {
+						curserver.notify();
+					}
+					synchronized (curserver) {
+						curserver.wait();
+					}
+					
 					if (curserver.finished()==false) 
 						waiting.add(curserver); 
 				} catch (Exception ex) {
 					System.out.println(ex);
-				} finally {
-				//Stop all the servers
-				}
+					subserver[0].kill();
+					for (int i=0;i<players;i++) 
+						synchronized (subserver[i]) {
+							subserver[i].notify();
+						}
+					break;
+				} 
 			}	
 			
 			//Find the winner
@@ -110,19 +129,29 @@ public class MyServer implements Runnable {
 				}
 				res=subserver[winner].getPlayerName()+" wins!!";
 			}
+			
+			System.out.println(res);
+			for (int i=0;i<players;i++)
+				synchronized (subserver[i]) {
+					subserver[i].notify();
+				}
 
 			//Notify all the servers and Ready to start again
-			for (int i=0;i<players;i++) 
-				subserver[i].notify();
 			String x="";
-			while (x.equals("Y")==false&&x.equals("N")==false) {
+			while ((x.equals("Y")==false)&&(x.equals("N")==false)) {
 				System.out.println("Continue: Y/N");
-				String str=in.next();
+				x=in.next();
 			}
 			if (x.equals("N"))
 				break; 
 		}
-		
+		main_server.close();
+		subserver[0].kill();		
+		for (int i=0;i<players;i++)
+			synchronized (subserver[i]) {
+				subserver[i].notify();
+			}
+		System.out.println("Master out");
 		
 	}
 	
@@ -136,48 +165,95 @@ public class MyServer implements Runnable {
 			Card mycard;
 			String str=in.readLine();
 			this.name=str;
-			while (true) {
+
+
+			while (isRunning) {
+			//Game begins!
+				try {
+				//wait for the master to begin
+					this.wait();
+				} catch (Exception ex) {
+					System.out.println(ex);
+					isRunning=false;
+				}
+
+
+				point=0;
+
+				if (isRunning==false)
+					break;
 				str=in.readLine();
 				System.out.println(str);
-				out.flush();
 				if (str.equals("End"))
 					break;
 				if (str.equals("Ready")==false)
 					continue;
+
 				mycard=cur.poll();
-				objout.writeObject(mycard);	
 				this.state=false;
-				this.point+=mycard.getVal();
-				while (true) {
-					while (str.equals("Y")==false&&str.equals("N")==false)
-						str=in.readLine();
-					if (str.equals("Y")) {
-						mycard=cur.poll();
-						objout.writeObject(mycard);
-						this.point+=mycard.getVal();
+				if (mycard.getVal()<10)
+					this.point+=mycard.getVal();
+				else
+					this.point+=10;
+				objout.writeObject(mycard);
+				objout.flush();
+
+				try {
+					while (isRunning) {
+					//Keep taking cards
+						while (str.equals("Y")==false&&str.equals("N")==false)
+							str=in.readLine();
+						if (str.equals("Y")) {
+							mycard=cur.poll();
+							if (mycard.getVal()<10)
+								this.point+=mycard.getVal();
+							else
+								this.point+=10;
+							objout.writeObject(mycard);
+							objout.flush();
+						}
+						else 
+							break;
+
+						str="";
+						synchronized (this) {
+							this.notify();
+						}
+						synchronized (this) {
+							this.wait();
+						}
 					}
-					else 
-						break;
-					cur.notify();
-					this.wait();
-				}
-				this.state=true;
-				cur.notify();
-				this.wait();
-				out.println(res);
-				
+
+					//Stop taking cards
+					this.state=true;
+					synchronized (this) {
+						this.notify();
+					}
+					synchronized (this) {
+						this.wait();
+					}
+					
+					//Show the final result
+					out.println(res);
+					out.flush();
+
+				} catch (Exception ex) {
+					System.out.println(ex);
+					
+					this.state=true;
+					isRunning=false;
+					break;
+				} 
 			}
+
 			in.close();
 			out.close();
 			objout.close();
 			outstream.close();
 			client.close();
 		} catch(IOException ex) {
-			System.out.println(ex);//something need to do?
-		} finally {
-			//something need to do?
-
-		}
+			System.out.println(ex);
+		} 
 
 	}
 }
