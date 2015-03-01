@@ -1,3 +1,3 @@
 # MyGames
 
-These are some boardgames I like to play with my friends. 
+These are some projects I like to play with my friends. 
